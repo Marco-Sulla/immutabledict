@@ -1,85 +1,58 @@
-from __future__ import annotations
+from collections.abc import Hashable
+from typing import Generic, NoReturn, TypeVar, overload, Type, Optional
 
-from collections import OrderedDict
-from typing import Any, Dict, Iterable, Iterator, Mapping, Optional, Type, TypeVar
+try:
+    from typing import Mapping, Sequence, Iterable, Iterator
+except ImportError:
+    from collections.abc import Mapping, Sequence, Iterable, Iterator
 
-__version__ = "2.2.3"
-
-_K = TypeVar("_K")
+_K = TypeVar("_K", Hashable)
 _V = TypeVar("_V")
+_KV = TypeVar("_V", _K, _V)
+_T = TypeVar("_T", Mapping[_K, _V])
 
+def frozendict_or(
+    self: Mapping[_K, _V], other: Mapping[_K, _V]
+) -> "frozendict[_K, _V]": ...
 
-class immutabledict(Mapping[_K, _V]):
-    """
-    An immutable wrapper around dictionaries that implements
-    the complete :py:class:`collections.Mapping` interface.
-    It can be used as a drop-in replacement for dictionaries
-    where immutability is desired.
-    """
+class frozendict(Mapping[_K, _V], Generic[_K, _V]):
+    # Fake __init__ to describe what __new__ does:
+    @overload
+    def __init__(self, **kwargs: _V) -> None: ...
+    @overload
+    def __init__(self, mapping: Mapping[_K, _V]) -> None: ...
+    @overload
+    def __init__(self, iterable: Iterable[Sequence[_KV]]) -> None: ...
 
-    dict_cls: Type[Dict[Any, Any]] = dict
-
+    # Magic Methods:
+    def __getitem__(self, __key: _K) -> _V: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[_K]: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+    def copy(self: _T) -> _T: ...
+    def __copy__(self: _T) -> _T: ...
+    def __deepcopy__(self: _T) -> _T: ...
+    # Omit __reduce__, its used for Pickle and we don't need the annotation in code.
+    def set(self: _T, key: _K, value: _V) -> _T: ...
+    def setdefault(self: _T, key: _K, default: _V) -> _T: ...
+    def delete(self: _T, key: _K) -> _T: ...
+    def key(self, index: int) -> _K: ...
+    def value(self, index: int) -> _V: ...
+    def item(self, index: int) -> Sequence[_KV]: ...
+    def __or__(self: _T, other: Mapping[_K, _V]) -> _T: ...
+    def __reversed__(self) -> Iterator[_K]: ...
+    
     @classmethod
     def fromkeys(
-        cls, seq: Iterable[_K], value: Optional[_V] = None
-    ) -> "immutabledict[_K, _V]":
-        return cls(dict.fromkeys(seq, value))
+        cls: Type[_T], 
+        seq: Iterable[_K], 
+        value: Optional[_V] = None
+    ) -> _T: ...
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._dict = self.dict_cls(*args, **kwargs)
-        self._hash: Optional[int] = None
-
-    def __getitem__(self, key: _K) -> _V:
-        return self._dict[key]
-
-    def __contains__(self, key: object) -> bool:
-        return key in self._dict
-
-    def copy(self, **add_or_replace: _V) -> immutabledict[_K, _V]:
-        return self.__class__(self, **add_or_replace)
-
-    def __iter__(self) -> Iterator[_K]:
-        return iter(self._dict)
-
-    def __len__(self) -> int:
-        return len(self._dict)
-
-    def __repr__(self) -> str:
-        return "%s(%r)" % (self.__class__.__name__, self._dict)
-
-    def __hash__(self) -> int:
-        if self._hash is None:
-            h = 0
-            for key, value in self.items():
-                h ^= hash((key, value))
-            self._hash = h
-
-        return self._hash
-
-    def __or__(self, other: Any) -> immutabledict[_K, _V]:
-        if not isinstance(other, (dict, self.__class__)):
-            return NotImplemented
-        new = dict(self)
-        new.update(other)
-        return self.__class__(new)
-
-    def __ror__(self, other: Any) -> Dict[Any, Any]:
-        if not isinstance(other, (dict, self.__class__)):
-            return NotImplemented
-        new = dict(other)
-        new.update(self)
-        return new
-
-    def __ior__(self, other: Any) -> immutabledict[_K, _V]:
-        raise TypeError(f"'{self.__class__.__name__}' object is not mutable")
+    # Blacklisted methods:
+    def __setattr__(self, *a, **kw) -> NoReturn: ...
+    def __delattr__(self, *a, **kw) -> NoReturn: ...
 
 
-class ImmutableOrderedDict(immutabledict):
-    """
-    An immutabledict subclass that maintains key order.
-
-    Not necessary anymore as for Python >= 3.7 order is guaranteed with the normal
-    immutabledict class, but kept for compatibility purpose.
-    """
-
-    dict_cls = OrderedDict
+FrozenOrderedDict = frozendict
